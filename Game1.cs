@@ -9,11 +9,12 @@ using System.Timers;
 using System;
 using System.Net;
 using System.IO.Compression;
-using Newtonsoft.Json;
+using Auth0.OidcClient;
+using RestSharp;
+using System.Security.Claims;
 
 namespace MonoGame_Test
 {
-
     public class Game1 : Game
     {
         //Read config
@@ -181,13 +182,27 @@ namespace MonoGame_Test
             hitload.Dispose();
         }
 
-        protected override void Initialize()
+        protected async override void Initialize()
         {
-            Tappu.Login f2 = new Tappu.Login();
-            f2.Show();
+            Auth0Client client;
+
+            Auth0ClientOptions clientOptions = new Auth0ClientOptions
+            {
+                Domain = "tappu.eu.auth0.com",
+                ClientId = "syGa7Bhq7oQu1VVFOedYzClqm5nQZr0e",
+                RedirectUri = "https://tappu.eu.auth0.com/mobile",
+                Browser = new Tappu.WebViewBrowserChromium()
+            };
+            client = new Auth0Client(clientOptions);
+            clientOptions.PostLogoutRedirectUri = clientOptions.RedirectUri;
 
             base.Initialize();
-                
+
+            var loginResult = await client.LoginAsync();
+            var result = loginResult.User.Identity.IsAuthenticated + "\n" + loginResult.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+            File.WriteAllText("userdata/tmpuser", result);
+
             //Set update fixed timer
             fixedupdate = new Timer(); fixedupdate.Interval = 4.16666666667 /* 240HZ in ms */; fixedupdate.Elapsed += UpdateFixed; fixedupdate.Enabled = true;
 
@@ -217,7 +232,8 @@ namespace MonoGame_Test
 
             if (Keyboard.GetState().IsKeyDown(Keys.Enter))
             {
-                
+                System.Windows.Forms.MessageBox.Show("PFP Changing");
+                changepfp("sss");
             }
 
             if (Keyboard.GetState().IsKeyDown(Keys.LeftAlt))
@@ -238,6 +254,7 @@ namespace MonoGame_Test
 
         protected override void Draw(GameTime gameTime)
         {
+            
             //Update every frame stuff
             base.Draw(gameTime);
             var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -248,7 +265,7 @@ namespace MonoGame_Test
             var fps = string.Format("FPS: {0}", rounded);
 
             //Begin Draw
-            _spriteBatch.Begin(SpriteSortMode.FrontToBack, BlendState.NonPremultiplied);
+            _spriteBatch.Begin(SpriteSortMode.BackToFront, BlendState.NonPremultiplied);
 
             //Draw background
             _spriteBatch.Draw(menu, new Rectangle(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height), Color.White);
@@ -272,6 +289,16 @@ namespace MonoGame_Test
 
             //End Draw
             _spriteBatch.End();
+        }
+
+        private static void changepfp(string userid)
+        {
+            var client = new RestClient("https://tappu.eu.auth0.com/api/v2/users/" + userid);
+            var request = new RestRequest(Method.PATCH);
+            request.AddHeader("authorization", "Bearer ABCD");
+            request.AddHeader("content-type", "application/json");
+            request.AddParameter("application/json", "{\"user_metadata\": {\"picture\": \"file://C:/Users/euanw/Downloads/smeg.png\"}}", ParameterType.RequestBody);
+            IRestResponse response = client.Execute(request);
         }
     }
 
